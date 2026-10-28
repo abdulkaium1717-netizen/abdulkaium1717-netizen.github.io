@@ -1,0 +1,261 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { getSales, getPayments, getInventoryItems } from "@/lib/server-queries";
+import {
+  computeSaleDueStatus,
+  money,
+  fmtDateTime,
+  startOfTodayISO,
+  startOfMonthISO,
+  customerKey,
+  type Sale,
+  type InventoryItem,
+  type CustomerPayment,
+} from "@/lib/shop";
+import { KpiCard, PageHeader, Pending, LoadError, EmptyState, DueBadge } from "@/components/shop-ui";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  ReceiptText,
+  PackagePlus,
+  TrendingUp,
+  HandCoins,
+  AlertTriangle,
+  ArrowRight,
+} from "lucide-react";
+
+const salesQo = queryOptions({ queryKey: ["sales"], queryFn: () => getSales() });
+const paymentsQo = queryOptions({
+  queryKey: ["customer_payments"],
+  queryFn: () => getPayments(),
+});
+const itemsQo = queryOptions({
+  queryKey: ["inventory_items"],
+  queryFn: () => getInventoryItems(),
+});
+
+export const Route = createFileRoute("/_authenticated/")({
+  head: () => ({
+    meta: [
+      { title: "Easy Link — Dashboard" },
+      {
+        name: "description",
+        content: "Today's sales, dues, stock alerts and recent invoices for Easy Link.",
+      },
+      { property: "og:title", content: "Easy Link — Dashboard" },
+      {
+        property: "og:description",
+        content: "Today's sales, dues, stock alerts and recent invoices for Easy Link.",
+      },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.ensureQueryData(salesQo),
+      context.queryClient.ensureQueryData(paymentsQo),
+      context.queryClient.ensureQueryData(itemsQo),
+    ]),
+  pendingComponent: Pending,
+  errorComponent: ({ error }) => <LoadError error={error} />,
+  notFoundComponent: () => <EmptyState title="Page not found" />,
+  component: Dashboard,
+});
+
+function Dashboard() {
+  const { data: sales } = useSuspenseQuery(salesQo);
+  const { data: payments } = useSuspenseQuery(paymentsQo);
+  const { data: items } = useSuspenseQuery(itemsQo);
+  const dueStatus = computeSaleDueStatus(sales, payments);
+
+  const today = sales.filter((s) => s.created_at >= startOfTodayISO());
+  const month = sales.filter((s) => s.created_at >= startOfMonthISO());
+
+  const todayTotal = today.reduce((a, s) => a + Number(s.total), 0);
+  const monthTotal = month.reduce((a, s) => a + Number(s.total), 0);
+
+  // Outstanding dues = unpaid remainders minus payments received
+  const billedByCustomer = new Map<string, number>();
+  for (const s of sales) {
+    if (Number(s.due) > 0) {
+      const key = customerKey(s.customer_name, s.customer_phone);
+      billedByCustomer.set(key, (billedByCustomer.get(key) ?? 0) + Number(s.due));
+    }
+  }
+  const paidBackByCustomer = new Map<string, number>();
+  for (const p of payments) {
+    const key = customerKey(p.customer_name, p.customer_phone);
+    paidBackByCustomer.set(key, (paidBackByCustomer.get(key) ?? 0) + Number(p.amount));
+  }
+  let outstanding = 0;
+  for (const [key, billed] of billedByCustomer) {
+    outstanding += Math.max(0, billed - (paidBackByCustomer.get(key) ?? 0));
+  }
+
+  const lowStock = items.filter(
+    (i) => Number(i.stock) <= Number(i.low_stock_threshold),
+  );
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Dashboard"
+        subtitle="Easy Link at a glance — sales, dues and stock."
+        actions={
+          <>
+            <Button asChild>
+              <Link to="/new-sale">
+                <ReceiptText className="size-4" /> New Sale
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/inventory">
+                <PackagePlus className="size-4" /> Add Items
+              </Link>
+            </Button>
+          </>
+        }
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Today's Sales"
+          value={money(todayTotal)}
+          hint={`${today.length} invoice${today.length === 1 ? "" : "s"} today`}
+          icon={<TrendingUp className="size-5" />}
+        />
+        <KpiCard
+          label="This Month"
+          value={money(monthTotal)}
+          hint={`${month.length} invoice${month.length === 1 ? "" : "s"} this month`}
+          icon={<ReceiptText className="size-5" />}
+        />
+        <KpiCard
+          label="Customer Dues"
+          value={money(outstanding)}
+          hint="leftover to collect"
+          icon={<HandCoins className="size-5" />}
+        />
+        <KpiCard
+          label="Low Stock"
+          value={String(lowStock.length)}
+          hint={lowStock.length > 0 ? "items need restocking" : "stock is healthy"}
+          icon={<AlertTriangle className="size-5" />}
+        />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="border-border/70 shadow-sm lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="font-display text-lg">Recent Sales</CardTitle>
+            <Link
+              to="/sales-log"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Sales Log <ArrowRight className="size-4" />
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {sales.length === 0 ? (
+              <EmptyState
+                title="No sales yet"
+                hint="Create your first invoice with New Sale."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-right">Due</TableHead>
+                    <TableHead className="text-right">Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sales.slice(0, 6).map((s) => (
+                    <TableRow key={s.id}>
+                      <TableCell>
+                        <Link
+                          to="/invoice/$id"
+                          params={{ id: String(s.id) }}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {s.invoice_no ?? `EL-${String(s.id).padStart(5, "0")}`}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{s.customer_name || "Walk-in"}</TableCell>
+                      <TableCell className="text-right font-medium">
+                        {money(s.total)}
+                      </TableCell>
+                      <TableCell className="text-right">
+<DueBadge due={s.due} status={dueStatus.get(s.id)} />
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {fmtDateTime(s.created_at)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="font-display text-lg">Stock Alerts</CardTitle>
+            <Link
+              to="/leftover"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              Leftover <ArrowRight className="size-4" />
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {items.length === 0 ? (
+              <EmptyState
+                title="No inventory items yet"
+                hint="Add your shop items in Inventory."
+              />
+            ) : lowStock.length === 0 ? (
+              <EmptyState title="All items are well stocked" />
+            ) : (
+              lowStock.map((i) => (
+                <div
+                  key={i.id}
+                  className="flex items-center justify-between rounded-md border border-border/70 bg-muted/40 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium">{i.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Alert below {Number(i.low_stock_threshold)} {i.unit}
+                    </div>
+                  </div>
+                  <Badge variant="destructive">
+                    {Number(i.stock)} {i.unit}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Keep the supabase client import used for browser mutations elsewhere; this
+// page only reads via server functions.
+void supabase;
