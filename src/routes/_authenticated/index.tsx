@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -6,7 +7,6 @@ import {
   computeSaleDueStatus,
   money,
   fmtDateTime,
-  startOfTodayISO,
   startOfMonthISO,
   customerKey,
   todayISODate,
@@ -34,6 +34,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Wallet,
+  Banknote,
 } from "lucide-react";
 
 const salesQo = queryOptions({ queryKey: ["sales"], queryFn: () => getSales() });
@@ -87,20 +88,51 @@ function Dashboard() {
   const { data: costs } = useSuspenseQuery(costsQo);
   const dueStatus = computeSaleDueStatus(sales, payments);
 
-  const today = sales.filter((s) => s.created_at >= startOfTodayISO());
+  // Today's date key. It updates itself at midnight, so the dashboard
+  // starts a fresh day even if the page was left open overnight.
+  const [todayKey, setTodayKey] = useState(todayISODate());
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+      0,
+      0,
+      5,
+    );
+    const timer = setTimeout(
+      () => setTodayKey(todayISODate()),
+      nextMidnight.getTime() - now.getTime(),
+    );
+    return () => clearTimeout(timer);
+  }, [todayKey]);
+
+  // Local midnight at the start of today
+  const startToday = new Date(`${todayKey}T00:00:00`).getTime();
+  const isToday = (iso: string) => new Date(iso).getTime() >= startToday;
+
+  const today = sales.filter((s) => isToday(s.created_at));
   const month = sales.filter((s) => s.created_at >= startOfMonthISO());
 
   const todayTotal = today.reduce((a, s) => a + Number(s.total), 0);
   const monthTotal = month.reduce((a, s) => a + Number(s.total), 0);
 
-  const todayKey = todayISODate();
   const monthKey = todayKey.slice(0, 7);
-  const cashOutToday = costs
-    .filter((c) => c.spent_on === todayKey)
-    .reduce((a, c) => a + Number(c.amount), 0);
+  const todayCosts = costs.filter((c) => c.spent_on === todayKey);
+  const cashOutToday = todayCosts.reduce((a, c) => a + Number(c.amount), 0);
   const cashOutMonth = costs
     .filter((c) => c.spent_on.startsWith(monthKey))
     .reduce((a, c) => a + Number(c.amount), 0);
+
+  // Cash in hand today = money received today (paid on today's sales
+  // plus customer dues collected today) minus cash taken out today
+  const paidToday = today.reduce((a, s) => a + Number(s.paid), 0);
+  const duesCollectedToday = payments
+    .filter((p) => isToday(p.created_at))
+    .reduce((a, p) => a + Number(p.amount), 0);
+  const receivedToday = paidToday + duesCollectedToday;
+  const cashInHand = receivedToday - cashOutToday;
 
   // Outstanding dues = unpaid remainders minus payments received
   const billedByCustomer = new Map<string, number>();
@@ -145,7 +177,7 @@ function Dashboard() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard
           label="Today's Sales"
           value={money(todayTotal)}
@@ -157,6 +189,12 @@ function Dashboard() {
           value={money(cashOutToday)}
           hint={`${money(cashOutMonth)} this month`}
           icon={<Wallet className="size-5" />}
+        />
+        <KpiCard
+          label="Cash In Hand Today"
+          value={money(cashInHand)}
+          hint={`${money(receivedToday)} received − ${money(cashOutToday)} used`}
+          icon={<Banknote className="size-5" />}
         />
         <KpiCard
           label="This Month"
@@ -181,7 +219,7 @@ function Dashboard() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="border-border/70 shadow-sm lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="font-display text-lg">Recent Sales</CardTitle>
+            <CardTitle className="font-display text-lg">Today's Sales</CardTitle>
             <Link
               to="/sales-log"
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
@@ -190,10 +228,10 @@ function Dashboard() {
             </Link>
           </CardHeader>
           <CardContent>
-            {sales.length === 0 ? (
+            {today.length === 0 ? (
               <EmptyState
-                title="No sales yet"
-                hint="Create your first invoice with New Sale."
+                title="No sales today"
+                hint="New invoices show here. All past invoices stay in the Sales Log."
               />
             ) : (
               <Table>
@@ -207,7 +245,7 @@ function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sales.slice(0, 6).map((s) => (
+                  {today.slice(0, 6).map((s) => (
                     <TableRow key={s.id}>
                       <TableCell>
                         <Link
@@ -278,7 +316,7 @@ function Dashboard() {
 
       <Card className="border-border/70 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-display text-lg">Recent Daily Costs</CardTitle>
+          <CardTitle className="font-display text-lg">Today's Daily Costs</CardTitle>
           <Link
             to="/daily-cost"
             className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
@@ -287,10 +325,10 @@ function Dashboard() {
           </Link>
         </CardHeader>
         <CardContent>
-          {costs.length === 0 ? (
+          {todayCosts.length === 0 ? (
             <EmptyState
-              title="No daily costs yet"
-              hint="Add cash you take out in Daily Cost."
+              title="No cash used today"
+              hint="Add cash you take out in Daily Cost. Past entries stay on the Daily Cost page."
             />
           ) : (
             <Table>
@@ -303,7 +341,7 @@ function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {costs.slice(0, 5).map((c) => (
+                {todayCosts.slice(0, 5).map((c) => (
                   <TableRow key={c.id}>
                     <TableCell>{c.spent_on}</TableCell>
                     <TableCell className="font-medium">{c.category}</TableCell>
