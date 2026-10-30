@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getSales, getPayments, getInventoryItems } from "@/lib/server-queries";
+import { getSales, getPayments, getInventoryItems,  getDailyCosts } from "@/lib/server-queries";
 import {
   computeSaleDueStatus,
   money,
@@ -9,6 +9,7 @@ import {
   startOfTodayISO,
   startOfMonthISO,
   customerKey,
+  todayISODate,
   type Sale,
   type InventoryItem,
   type CustomerPayment,
@@ -32,6 +33,7 @@ import {
   HandCoins,
   AlertTriangle,
   ArrowRight,
+  Wallet,
 } from "lucide-react";
 
 const salesQo = queryOptions({ queryKey: ["sales"], queryFn: () => getSales() });
@@ -42,6 +44,10 @@ const paymentsQo = queryOptions({
 const itemsQo = queryOptions({
   queryKey: ["inventory_items"],
   queryFn: () => getInventoryItems(),
+});
+const costsQo = queryOptions({
+  queryKey: ["daily_costs"],
+  queryFn: () => getDailyCosts(),
 });
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -66,6 +72,7 @@ export const Route = createFileRoute("/_authenticated/")({
       context.queryClient.ensureQueryData(salesQo),
       context.queryClient.ensureQueryData(paymentsQo),
       context.queryClient.ensureQueryData(itemsQo),
+      context.queryClient.ensureQueryData(costsQo),
     ]),
   pendingComponent: Pending,
   errorComponent: ({ error }) => <LoadError error={error} />,
@@ -77,6 +84,7 @@ function Dashboard() {
   const { data: sales } = useSuspenseQuery(salesQo);
   const { data: payments } = useSuspenseQuery(paymentsQo);
   const { data: items } = useSuspenseQuery(itemsQo);
+  const { data: costs } = useSuspenseQuery(costsQo);
   const dueStatus = computeSaleDueStatus(sales, payments);
 
   const today = sales.filter((s) => s.created_at >= startOfTodayISO());
@@ -84,6 +92,15 @@ function Dashboard() {
 
   const todayTotal = today.reduce((a, s) => a + Number(s.total), 0);
   const monthTotal = month.reduce((a, s) => a + Number(s.total), 0);
+
+  const todayKey = todayISODate();
+  const monthKey = todayKey.slice(0, 7);
+  const cashOutToday = costs
+    .filter((c) => c.spent_on === todayKey)
+    .reduce((a, c) => a + Number(c.amount), 0);
+  const cashOutMonth = costs
+    .filter((c) => c.spent_on.startsWith(monthKey))
+    .reduce((a, c) => a + Number(c.amount), 0);
 
   // Outstanding dues = unpaid remainders minus payments received
   const billedByCustomer = new Map<string, number>();
@@ -128,12 +145,18 @@ function Dashboard() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
         <KpiCard
           label="Today's Sales"
           value={money(todayTotal)}
           hint={`${today.length} invoice${today.length === 1 ? "" : "s"} today`}
           icon={<TrendingUp className="size-5" />}
+        />
+        <KpiCard
+          label="Cash Used Today"
+          value={money(cashOutToday)}
+          hint={`${money(cashOutMonth)} this month`}
+          icon={<Wallet className="size-5" />}
         />
         <KpiCard
           label="This Month"
