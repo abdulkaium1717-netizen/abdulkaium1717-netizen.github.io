@@ -52,6 +52,33 @@ export type Database = {
           },
         ]
       }
+      daily_costs: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string | null
+          id: number
+          spent_on: string
+        }
+        Insert: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: never
+          spent_on?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: never
+          spent_on?: string
+        }
+        Relationships: []
+      }
       inventory_items: {
         Row: {
           created_at: string
