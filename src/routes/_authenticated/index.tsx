@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getSales, getPayments, getInventoryItems,  getDailyCosts } from "@/lib/server-queries";
+import { getSales, getPayments, getInventoryItems, getDailyCosts } from "@/lib/server-queries";
 import {
   computeSaleDueStatus,
   money,
@@ -223,7 +223,7 @@ function Dashboard() {
                         {money(s.total)}
                       </TableCell>
                       <TableCell className="text-right">
-<DueBadge due={s.due} status={dueStatus.get(s.id)} />
+                        <DueBadge due={s.due} status={dueStatus.get(s.id)} />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         {fmtDateTime(s.created_at)}
@@ -275,6 +275,51 @@ function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="font-display text-lg">Recent Daily Costs</CardTitle>
+          <Link
+            to="/daily-cost"
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            Daily Cost <ArrowRight className="size-4" />
+          </Link>
+        </CardHeader>
+        <CardContent>
+          {costs.length === 0 ? (
+            <EmptyState
+              title="No daily costs yet"
+              hint="Add cash you take out in Daily Cost."
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Used for</TableHead>
+                  <TableHead>Note</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {costs.slice(0, 5).map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell>{c.spent_on}</TableCell>
+                    <TableCell className="font-medium">{c.category}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {c.description || "—"}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {money(c.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
