@@ -114,3 +114,22 @@ export function computeSaleDueStatus(
   }
   return result;
 }
+
+export type DailyCost = Tables["daily_costs"]["Row"];
+
+/** Quick-pick categories for cash taken out of the shop drawer. */
+export const DAILY_COST_CATEGORIES = [
+  "Food",
+  "Tea/Snacks",
+  "Transport",
+  "Bill",
+  "Shopping",
+  "Other",
+] as const;
+
+/** Local calendar date (YYYY-MM-DD) for today, matching the `spent_on` date column. */
+export const todayISODate = () => {
+  const d = new Date();
+  const offsetMs = d.getTimezoneOffset() * 60000;
+  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
+};
