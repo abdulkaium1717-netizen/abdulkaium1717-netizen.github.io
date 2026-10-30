@@ -6,6 +6,7 @@ import type {
   Service,
   InventoryItem,
   CustomerPayment,
+  DailyCost,
 } from "@/lib/shop";
 
 export const getSales = createServerFn({ method: "GET" })
@@ -56,6 +57,17 @@ export const getPayments = createServerFn({ method: "GET" })
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as CustomerPayment[];
+});
+
+export const getDailyCosts = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { data, error } = await context.supabase
+    .from("daily_costs")
+    .select("*")
+    .order("spent_on", { ascending: false })
+    .order("id", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as DailyCost[];
 });
 
 export const getSaleWithItems = createServerFn({ method: "GET" })
