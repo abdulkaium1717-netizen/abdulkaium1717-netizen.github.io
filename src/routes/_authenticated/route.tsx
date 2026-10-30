@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: "/", label: "Dashboard" },
   { to: "/new-sale", label: "New Sale" },
   { to: "/inventory", label: "Inventory" },
+  { to: "/daily-cost", label: "Daily Cost" },
   { to: "/sales-log", label: "Sales Log" },
   { to: "/leftover", label: "Leftover" },
   { to: "/analysis", label: "Analysis" },
