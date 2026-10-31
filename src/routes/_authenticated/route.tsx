@@ -70,6 +70,7 @@ function AppShell() {
       </main>
       <footer className="no-print border-t border-border bg-card py-4 text-center text-xs text-muted-foreground">
         &copy; Easy Link 2026 All Rights Reserved
+        Built by <a href="https://3lackha7e.github.io/">Osmotic Zero</a>
       </footer>
     </div>
   );
