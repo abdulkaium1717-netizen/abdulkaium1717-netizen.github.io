@@ -69,7 +69,7 @@ function AppShell() {
         <Outlet />
       </main>
       <footer className="no-print border-t border-border bg-card py-4 text-center text-xs text-muted-foreground">
-        Easy Link · Sales · Inventory · Leftover
+        &copy; Easy Link 2026 All Rights Reserved
       </footer>
     </div>
   );
