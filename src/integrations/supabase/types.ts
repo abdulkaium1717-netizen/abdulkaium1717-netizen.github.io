@@ -258,12 +258,14 @@ export type Database = {
           created_at: string
           customer_name: string | null
           customer_phone: string | null
+          change_amount: number
           discount_amount: number
           due: number
           id: number
           invoice_no: string | null
           notes: string | null
           paid: number
+          received: number
           subtotal: number
           total: number
         }
@@ -271,12 +273,14 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          change_amount?: number
           discount_amount?: number
           due?: number
           id?: never
           invoice_no?: string | null
           notes?: string | null
           paid?: number
+          received?: number
           subtotal?: number
           total?: number
         }
@@ -284,12 +288,14 @@ export type Database = {
           created_at?: string
           customer_name?: string | null
           customer_phone?: string | null
+          change_amount?: number
           discount_amount?: number
           due?: number
           id?: never
           invoice_no?: string | null
           notes?: string | null
           paid?: number
+          received?: number
           subtotal?: number
           total?: number
         }
