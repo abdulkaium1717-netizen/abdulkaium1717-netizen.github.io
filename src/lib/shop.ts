@@ -150,3 +150,6 @@ export const todayISODate = () => {
   const offsetMs = d.getTimezoneOffset() * 60000;
   return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
 };
+
+export const invoiceNo = (s: { id: number; invoice_no: string | null }) =>
+  s.invoice_no ?? `EL-${String(s.id).padStart(2, "0")}`;
