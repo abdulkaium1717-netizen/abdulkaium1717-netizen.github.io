@@ -8,8 +8,17 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { getServices, getInventoryItems } from "@/lib/server-queries";
-import { money, round2, type Sale, type Service, type InventoryItem } from "@/lib/shop";
+import { getServices, getInventoryItems, getServiceSupplies } from "@/lib/server-queries";
+import {
+  money,
+  round2,
+  clampPercentDiscount,
+  MAX_PERCENT_DISCOUNT,
+  type Sale,
+  type Service,
+  type InventoryItem,
+  type ServiceSupply,
+} from "@/lib/shop";
 import { PageHeader, Pending, LoadError, EmptyState } from "@/components/shop-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +52,10 @@ const itemsQo = queryOptions({
   queryKey: ["inventory_items"],
   queryFn: () => getInventoryItems(),
 });
+const suppliesQo = queryOptions({
+  queryKey: ["service_supplies"],
+  queryFn: () => getServiceSupplies(),
+});
 
 export const Route = createFileRoute("/_authenticated/new-sale")({
   head: () => ({
@@ -65,6 +78,7 @@ export const Route = createFileRoute("/_authenticated/new-sale")({
     Promise.all([
       context.queryClient.ensureQueryData(servicesQo),
       context.queryClient.ensureQueryData(itemsQo),
+      context.queryClient.ensureQueryData(suppliesQo),
     ]),
   pendingComponent: Pending,
   errorComponent: ({ error }) => <LoadError error={error} />,
@@ -91,6 +105,7 @@ const newKey = () =>
 function NewSale() {
   const { data: services } = useSuspenseQuery(servicesQo);
   const { data: items } = useSuspenseQuery(itemsQo);
+  const { data: supplies } = useSuspenseQuery(suppliesQo);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
@@ -118,6 +133,17 @@ function NewSale() {
   const total = round2(subtotal - discountAmount);
   const paid = paidDirty ? Number(paidStr) || 0 : total;
   const due = round2(Math.max(total - paid, 0));
+
+  // Stock items a service consumes automatically (never billed to the customer)
+  const suppliesFor = (serviceId: number | null) =>
+    serviceId ? supplies.filter((s: ServiceSupply) => s.service_id === serviceId) : [];
+  const supplyLabel = (serviceId: number | null) =>
+    suppliesFor(serviceId)
+      .map((s) => {
+        const item = items.find((i) => i.id === s.inventory_item_id);
+        return `${Number(s.qty_per_unit)} ${item?.name ?? "item"}`;
+      })
+      .join(", ");
 
   useEffect(() => {
     if (!paidDirty) setPaidStr(total ? String(total) : "0");
@@ -355,6 +381,11 @@ function NewSale() {
                             <div className="text-xs text-muted-foreground">
                               {l.stock} {l.unit ?? "pcs"} in stock
                             </div>
+                          ) : l.kind === "service" && supplyLabel(l.refId) ? (
+                            <div className="text-xs text-muted-foreground">
+                              Auto-uses {supplyLabel(l.refId)} per {l.name.toLowerCase()} —
+                              stock deducted automatically
+                            </div>
                           ) : null}
                         </TableCell>
                         <TableCell>
@@ -456,7 +487,12 @@ function NewSale() {
                   <div className="flex overflow-hidden rounded-md border border-border">
                     <button
                       type="button"
-                      onClick={() => setDiscountMode("percent")}
+                      onClick={() => {
+                        setDiscountMode("percent");
+                        const n = Number(discountValue);
+                        if (discountValue !== "" && Number.isFinite(n))
+                          setDiscountValue(String(clampPercentDiscount(n)));
+                      }}
                       className={
                         "px-2 py-1 text-xs font-medium transition-colors " +
                         (discountMode === "percent"
@@ -484,8 +520,19 @@ function NewSale() {
                   <Input
                     type="number"
                     min="0"
+                    max={discountMode === "percent" ? MAX_PERCENT_DISCOUNT : undefined}
                     value={discountValue}
-                    onChange={(e) => setDiscountValue(e.target.value)}
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (discountMode === "percent" && raw !== "") {
+                        const n = Number(raw);
+                        setDiscountValue(
+                          Number.isFinite(n) ? String(clampPercentDiscount(n)) : raw,
+                        );
+                      } else {
+                        setDiscountValue(raw);
+                      }
+                    }}
                     placeholder={discountMode === "percent" ? "Discount %" : "Discount ৳"}
                     className="h-8"
                   />
@@ -493,6 +540,11 @@ function NewSale() {
                     − {money(discountAmount)}
                   </span>
                 </div>
+                <p className="text-xs text-muted-foreground">
+                  {discountMode === "percent"
+                    ? `Percentage discount is capped at ${MAX_PERCENT_DISCOUNT}%.`
+                    : "Money discount has no limit."}
+                </p>
               </div>
               <div className="flex justify-between border-t border-border pt-3 font-display text-lg font-bold">
                 <span>Total</span>
