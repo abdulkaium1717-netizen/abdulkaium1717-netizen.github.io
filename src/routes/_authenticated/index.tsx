@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getSales, getPayments, getInventoryItems, getDailyCosts, getReturns } from "@/lib/server-queries";
+import { getSales, getPayments, getInventoryItems, getDailyCosts } from "@/lib/server-queries";
 import {
   computeSaleDueStatus,
   money,
@@ -10,10 +10,6 @@ import {
   startOfMonthISO,
   customerKey,
   todayISODate,
-  type Sale,
-  type InventoryItem,
-  type CustomerPayment,
-  type CustomerReturn,
 } from "@/lib/shop";
 import { KpiCard, PageHeader, Pending, LoadError, EmptyState, DueBadge } from "@/components/shop-ui";
 import { Badge } from "@/components/ui/badge";
@@ -51,10 +47,6 @@ const costsQo = queryOptions({
   queryKey: ["daily_costs"],
   queryFn: () => getDailyCosts(),
 });
-const returnsQo = queryOptions({
-  queryKey: ["customer_returns"],
-  queryFn: () => getReturns(),
-});
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -79,7 +71,6 @@ export const Route = createFileRoute("/_authenticated/")({
       context.queryClient.ensureQueryData(paymentsQo),
       context.queryClient.ensureQueryData(itemsQo),
       context.queryClient.ensureQueryData(costsQo),
-      context.queryClient.ensureQueryData(returnsQo),
     ]),
   pendingComponent: Pending,
   errorComponent: ({ error }) => <LoadError error={error} />,
@@ -92,7 +83,6 @@ function Dashboard() {
   const { data: payments } = useSuspenseQuery(paymentsQo);
   const { data: items } = useSuspenseQuery(itemsQo);
   const { data: costs } = useSuspenseQuery(costsQo);
-  const { data: returns } = useSuspenseQuery(returnsQo);
   const dueStatus = computeSaleDueStatus(sales, payments);
 
   // Today's date key. It updates itself at midnight, so the dashboard
@@ -134,16 +124,12 @@ function Dashboard() {
 
   // Cash in hand today = money received today (paid on today's sales
   // plus customer dues collected today) minus cash taken out today
-  // and money refunded for customer returns today
   const paidToday = today.reduce((a, s) => a + Number(s.paid), 0);
   const duesCollectedToday = payments
     .filter((p) => isToday(p.created_at))
     .reduce((a, p) => a + Number(p.amount), 0);
-  const refundsToday = returns
-    .filter((r: CustomerReturn) => isToday(r.created_at))
-    .reduce((a, r) => a + Number(r.amount), 0);
   const receivedToday = paidToday + duesCollectedToday;
-  const cashInHand = receivedToday - cashOutToday - refundsToday;
+  const cashInHand = receivedToday - cashOutToday;
 
   // Outstanding dues = unpaid remainders minus payments received
   const billedByCustomer = new Map<string, number>();
@@ -204,10 +190,7 @@ function Dashboard() {
         <KpiCard
           label="Cash In Hand Today"
           value={money(cashInHand)}
-          hint={
-            `${money(receivedToday)} received − ${money(cashOutToday)} used` +
-            (refundsToday > 0 ? ` − ${money(refundsToday)} returned` : "")
-          }
+          hint={`${money(receivedToday)} received − ${money(cashOutToday)} used`}
           icon={<Banknote className="size-5" />}
         />
         <KpiCard
