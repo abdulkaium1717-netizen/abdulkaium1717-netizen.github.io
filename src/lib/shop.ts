@@ -7,9 +7,11 @@ export type InventoryItem = Tables["inventory_items"]["Row"];
 export type Sale = Tables["sales"]["Row"];
 export type SaleItem = Tables["sale_items"]["Row"];
 export type CustomerPayment = Tables["customer_payments"]["Row"];
+export type ServiceSupply = Tables["service_supplies"]["Row"];
+export type CustomerReturn = Tables["customer_returns"]["Row"];
+export type CustomerReturnItem = Tables["customer_return_items"]["Row"];
 
-export type ServiceInsert = Tables["services"]["Insert"];
-export type InventoryItemInsert = Tables["inventory_items"]["Insert"];
+export type ServiceSupplyInsert = Tables["service_supplies"]["Insert"];
 
 /** The seven service lines Easy Link sells. */
 export const SERVICE_TYPES = [
@@ -116,6 +118,21 @@ export function computeSaleDueStatus(
 }
 
 export type DailyCost = Tables["daily_costs"]["Row"];
+
+/** The hard cap for percentage discounts at the counter. */
+export const MAX_PERCENT_DISCOUNT = 2.5;
+
+/** Percentage discounts never exceed the cap; negative values clamp to 0. */
+export const clampPercentDiscount = (value: number) =>
+  round2(Math.min(Math.max(Number.isFinite(value) ? value : 0, 0), MAX_PERCENT_DISCOUNT));
+
+/** Quick-pick categories for stock items in Inventory. */
+export const INVENTORY_CATEGORIES = [
+  "Paper",
+  "Stationery",
+  "Print supplies",
+  "Other",
+] as const;
 
 /** Quick-pick categories for cash taken out of the shop drawer. */
 export const DAILY_COST_CATEGORIES = [
