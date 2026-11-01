@@ -52,6 +52,89 @@ export type Database = {
           },
         ]
       }
+      customer_return_items: {
+        Row: {
+          amount: number
+          id: number
+          inventory_item_id: number | null
+          name: string
+          qty: number
+          rate: number
+          return_id: number
+        }
+        Insert: {
+          amount?: number
+          id?: never
+          inventory_item_id?: number | null
+          name: string
+          qty?: number
+          rate?: number
+          return_id: number
+        }
+        Update: {
+          amount?: number
+          id?: never
+          inventory_item_id?: number | null
+          name?: string
+          qty?: number
+          rate?: number
+          return_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_return_items_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_return_items_return_id_fkey"
+            columns: ["return_id"]
+            isOneToOne: false
+            referencedRelation: "customer_returns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_returns: {
+        Row: {
+          amount: number
+          created_at: string
+          customer_name: string | null
+          customer_phone: string | null
+          id: number
+          note: string | null
+          sale_id: number | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: never
+          note?: string | null
+          sale_id?: number | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          customer_name?: string | null
+          customer_phone?: string | null
+          id?: never
+          note?: string | null
+          sale_id?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_returns_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       daily_costs: {
         Row: {
           amount: number
@@ -81,6 +164,7 @@ export type Database = {
       }
       inventory_items: {
         Row: {
+          category: string
           created_at: string
           id: number
           low_stock_threshold: number
@@ -90,6 +174,7 @@ export type Database = {
           unit: string
         }
         Insert: {
+          category?: string
           created_at?: string
           id?: never
           low_stock_threshold?: number
@@ -99,6 +184,7 @@ export type Database = {
           unit?: string
         }
         Update: {
+          category?: string
           created_at?: string
           id?: never
           low_stock_threshold?: number
@@ -208,6 +294,45 @@ export type Database = {
           total?: number
         }
         Relationships: []
+      }
+      service_supplies: {
+        Row: {
+          created_at: string
+          id: number
+          inventory_item_id: number
+          qty_per_unit: number
+          service_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: never
+          inventory_item_id: number
+          qty_per_unit?: number
+          service_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: never
+          inventory_item_id?: number
+          qty_per_unit?: number
+          service_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_supplies_inventory_item_id_fkey"
+            columns: ["inventory_item_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_supplies_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       services: {
         Row: {
