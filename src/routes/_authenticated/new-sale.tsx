@@ -5,7 +5,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getServices, getInventoryItems, getServiceSupplies } from "@/lib/server-queries";
@@ -119,6 +119,8 @@ function NewSale() {
   const [notes, setNotes] = useState("");
   const [discountMode, setDiscountMode] = useState<"percent" | "flat">("percent");
   const [discountValue, setDiscountValue] = useState("");
+  const [paidStr, setPaidStr] = useState("");
+  const [paidDirty, setPaidDirty] = useState(false);
   const [receivedStr, setReceivedStr] = useState("");
   const [receivedDirty, setReceivedDirty] = useState(false);
 
@@ -132,12 +134,15 @@ function NewSale() {
   const discountAmount = round2(Math.min(Math.max(rawDiscount, 0), subtotal));
   const total = round2(subtotal - discountAmount);
 
-  // Money the customer handed over
-  const received = round2(receivedDirty ? Number(receivedStr) || 0 : total);
-  // The invoice is only paid up to its total; anything extra is change
-  const paid = round2(Math.min(received, total));
-  const change = round2(Math.max(received - total, 0));
-  const due = round2(Math.max(total - received, 0));
+  // Paid now: what the customer must pay on this invoice (defaults to the total)
+  const paid = round2(
+    Math.min(Math.max(paidDirty ? Number(paidStr) || 0 : total, 0), total),
+  );
+  const due = round2(Math.max(total - paid, 0));
+  // Received: the cash the customer actually handed over (defaults to Paid now)
+  const received = round2(receivedDirty ? Number(receivedStr) || 0 : paid);
+  const change = round2(Math.max(received - paid, 0));
+  const short = round2(Math.max(paid - received, 0));
 
   // Stock items a service consumes automatically (never billed to the customer)
   const suppliesFor = (serviceId: number | null) =>
@@ -149,10 +154,6 @@ function NewSale() {
         return `${Number(s.qty_per_unit)} ${item?.name ?? "item"}`;
       })
       .join(", ");
-
-  useEffect(() => {
-    if (!receivedDirty) setReceivedStr(total ? String(total) : "0");
-  }, [total, receivedDirty]);
 
   const addServiceLine = () => {
     const svc = services.find((s) => String(s.id) === serviceId);
@@ -232,6 +233,10 @@ function NewSale() {
             `Only ${l.stock} ${l.unit ?? "pcs"} of ${l.name} left in stock`,
           );
       }
+      if (short > 0)
+        throw new Error(
+          `Received amount is ${money(short)} less than Paid now. Increase the received amount or lower Paid now.`,
+        );
       if (due > 0 && !customerName.trim())
         throw new Error(
           "Customer name is needed when part of the bill is due (leftover)",
@@ -560,19 +565,35 @@ function NewSale() {
                 <span>{money(total)}</span>
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="paid">Paid now (৳)</Label>
+                <Input
+                  id="paid"
+                  type="number"
+                  min="0"
+                  value={paidDirty ? paidStr : String(total)}
+                  onChange={(e) => {
+                    setPaidDirty(true);
+                    setPaidStr(e.target.value);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Amount the customer needs to pay now. Starts at the total; lower it to leave a due.
+                </p>
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="received">Received from customer (৳)</Label>
                 <Input
                   id="received"
                   type="number"
                   min="0"
-                  value={receivedStr}
+                  value={receivedDirty ? receivedStr : String(paid)}
                   onChange={(e) => {
                     setReceivedDirty(true);
                     setReceivedStr(e.target.value);
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  How much money the customer gave you.
+                  Type how much money the customer actually gave you.
                 </p>
               </div>
               <div className="flex justify-between text-sm">
@@ -586,10 +607,6 @@ function NewSale() {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Paid now</span>
-                <span className="font-semibold text-success">{money(paid)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Due (leftover)</span>
                 <span
                   className={
@@ -599,6 +616,11 @@ function NewSale() {
                   {money(due)}
                 </span>
               </div>
+              {short > 0 ? (
+                <p className="text-xs text-destructive">
+                  Received is {money(short)} less than Paid now.
+                </p>
+              ) : null}
               {due > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   This due is added to the customer's leftover record.
@@ -606,8 +628,7 @@ function NewSale() {
               ) : null}
               {change > 0 ? (
                 <p className="text-xs text-muted-foreground">
-                  Give {money(change)} back. Only {money(paid)} is counted as paid on this
-                  invoice.
+                  Give {money(change)} back to the customer.
                 </p>
               ) : null}
               <Button
