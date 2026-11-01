@@ -119,8 +119,8 @@ function NewSale() {
   const [notes, setNotes] = useState("");
   const [discountMode, setDiscountMode] = useState<"percent" | "flat">("percent");
   const [discountValue, setDiscountValue] = useState("");
-  const [paidStr, setPaidStr] = useState("");
-  const [paidDirty, setPaidDirty] = useState(false);
+  const [receivedStr, setReceivedStr] = useState("");
+  const [receivedDirty, setReceivedDirty] = useState(false);
 
   const subtotal = round2(
     lines.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0),
@@ -131,8 +131,13 @@ function NewSale() {
       : Number(discountValue) || 0;
   const discountAmount = round2(Math.min(Math.max(rawDiscount, 0), subtotal));
   const total = round2(subtotal - discountAmount);
-  const paid = paidDirty ? Number(paidStr) || 0 : total;
-  const due = round2(Math.max(total - paid, 0));
+
+  // Money the customer handed over
+  const received = round2(receivedDirty ? Number(receivedStr) || 0 : total);
+  // The invoice is only paid up to its total; anything extra is change
+  const paid = round2(Math.min(received, total));
+  const change = round2(Math.max(received - total, 0));
+  const due = round2(Math.max(total - received, 0));
 
   // Stock items a service consumes automatically (never billed to the customer)
   const suppliesFor = (serviceId: number | null) =>
@@ -146,8 +151,8 @@ function NewSale() {
       .join(", ");
 
   useEffect(() => {
-    if (!paidDirty) setPaidStr(total ? String(total) : "0");
-  }, [total, paidDirty]);
+    if (!receivedDirty) setReceivedStr(total ? String(total) : "0");
+  }, [total, receivedDirty]);
 
   const addServiceLine = () => {
     const svc = services.find((s) => String(s.id) === serviceId);
@@ -264,7 +269,11 @@ function NewSale() {
     onSuccess: async (sale) => {
       await queryClient.invalidateQueries({ queryKey: ["sales"] });
       await queryClient.invalidateQueries({ queryKey: ["inventory_items"] });
-      toast.success(`Invoice ${sale.invoice_no ?? sale.id} saved`);
+      toast.success(
+        change > 0
+          ? `Invoice ${sale.invoice_no ?? sale.id} saved — give ${money(change)} back to the customer`
+          : `Invoice ${sale.invoice_no ?? sale.id} saved`,
+      );
       await navigate({
         to: "/invoice/$id",
         params: { id: String(sale.id) },
@@ -551,17 +560,30 @@ function NewSale() {
                 <span>{money(total)}</span>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="paid">Paid now</Label>
+                <Label htmlFor="received">Received from customer (৳)</Label>
                 <Input
-                  id="paid"
+                  id="received"
                   type="number"
                   min="0"
-                  value={paidStr}
+                  value={receivedStr}
                   onChange={(e) => {
-                    setPaidDirty(true);
-                    setPaidStr(e.target.value);
+                    setReceivedDirty(true);
+                    setReceivedStr(e.target.value);
                   }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  How much money the customer gave you.
+                </p>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Return to customer (change)</span>
+                <span
+                  className={
+                    "font-semibold " + (change > 0 ? "text-destructive" : "text-muted-foreground")
+                  }
+                >
+                  {money(change)}
+                </span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Due (leftover)</span>
@@ -576,6 +598,12 @@ function NewSale() {
               {due > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   This due is added to the customer's leftover record.
+                </p>
+              ) : null}
+              {change > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Give {money(change)} back. Only {money(paid)} is counted as paid on this
+                  invoice.
                 </p>
               ) : null}
               <Button
