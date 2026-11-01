@@ -248,6 +248,8 @@ function NewSale() {
         discount_amount: discountAmount,
         total,
         paid,
+        received,
+        change_amount: change,
         due,
         notes: notes.trim() || null,
       };
