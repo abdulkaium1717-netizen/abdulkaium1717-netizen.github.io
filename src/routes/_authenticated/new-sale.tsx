@@ -586,6 +586,10 @@ function NewSale() {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Paid now</span>
+                <span className="font-semibold text-success">{money(paid)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Due (leftover)</span>
                 <span
                   className={
