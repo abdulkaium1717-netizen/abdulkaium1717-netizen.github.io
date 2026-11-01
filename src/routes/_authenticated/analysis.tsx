@@ -4,7 +4,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { getSales, getSaleItems, getPayments, getReturns } from "@/lib/server-queries";
+import { getSales, getSaleItems, getPayments } from "@/lib/server-queries";
 import {
   money,
   dayKey,
@@ -14,7 +14,6 @@ import {
   type Sale,
   type SaleItem,
   type CustomerPayment,
-  type CustomerReturn,
 } from "@/lib/shop";
 import { KpiCard, PageHeader, Pending, LoadError, EmptyState } from "@/components/shop-ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +33,7 @@ import {
   Tooltip,
   CartesianGrid,
 } from "recharts";
-import { TrendingUp, HandCoins, BadgePercent, ReceiptText, Undo2 } from "lucide-react";
+import { TrendingUp, HandCoins, BadgePercent, ReceiptText } from "lucide-react";
 
 const salesQo = queryOptions({ queryKey: ["sales"], queryFn: () => getSales() });
 const saleItemsQo = queryOptions({
@@ -44,10 +43,6 @@ const saleItemsQo = queryOptions({
 const paymentsQo = queryOptions({
   queryKey: ["customer_payments"],
   queryFn: () => getPayments(),
-});
-const returnsQo = queryOptions({
-  queryKey: ["customer_returns"],
-  queryFn: () => getReturns(),
 });
 
 export const Route = createFileRoute("/_authenticated/analysis")({
@@ -72,7 +67,6 @@ export const Route = createFileRoute("/_authenticated/analysis")({
       context.queryClient.ensureQueryData(salesQo),
       context.queryClient.ensureQueryData(saleItemsQo),
       context.queryClient.ensureQueryData(paymentsQo),
-      context.queryClient.ensureQueryData(returnsQo),
     ]),
   pendingComponent: Pending,
   errorComponent: ({ error }) => <LoadError error={error} />,
@@ -123,7 +117,6 @@ function AnalysisPage() {
   const { data: sales } = useSuspenseQuery(salesQo);
   const { data: saleItems } = useSuspenseQuery(saleItemsQo);
   const { data: payments } = useSuspenseQuery(paymentsQo);
-  const { data: returns } = useSuspenseQuery(returnsQo);
   const [period, setPeriod] = useState<Period>("month");
 
   const since = useMemo(() => {
@@ -142,16 +135,8 @@ function AnalysisPage() {
     [saleItems, saleIds],
   );
 
-  const filteredReturns = useMemo(
-    () =>
-      returns.filter(
-        (r: CustomerReturn) => (since ? r.created_at >= since : true),
-      ),
-    [returns, since],
-  );
-
-  // Cash the shop actually kept its hands on: paid at the counter,
-  // plus dues collected back from customers, minus money refunded.
+  // Cash the shop actually received: paid at the counter,
+  // plus dues collected back from customers.
   const revenue = filtered.reduce((a, s) => a + Number(s.total), 0);
   const paidAtCounter = filtered.reduce((a, s) => a + Number(s.paid), 0);
   const filteredPayments = useMemo(
@@ -159,8 +144,7 @@ function AnalysisPage() {
     [payments, since],
   );
   const duesCollected = filteredPayments.reduce((a, p) => a + Number(p.amount), 0);
-  const refundsGiven = filteredReturns.reduce((a, r) => a + Number(r.amount), 0);
-  const collected = paidAtCounter + duesCollected - refundsGiven;
+  const collected = paidAtCounter + duesCollected;
   const discountGiven = filtered.reduce((a, s) => a + Number(s.discount_amount), 0);
   const dueCreated = filtered.reduce((a, s) => a + Number(s.due), 0);
 
@@ -251,7 +235,7 @@ function AnalysisPage() {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           label="Revenue"
           value={money(revenue)}
@@ -261,7 +245,7 @@ function AnalysisPage() {
         <KpiCard
           label="Collected"
           value={money(collected)}
-          hint={`paid now + leftover received − refunds`}
+          hint={`paid now + leftover received`}
           icon={<ReceiptText className="size-5" />}
         />
         <KpiCard
@@ -269,12 +253,6 @@ function AnalysisPage() {
           value={money(discountGiven)}
           hint="on these invoices"
           icon={<BadgePercent className="size-5" />}
-        />
-        <KpiCard
-          label="Refunds Given"
-          value={money(refundsGiven)}
-          hint="customer returns"
-          icon={<Undo2 className="size-5" />}
         />
         <KpiCard
           label="Dues Created"
