@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { getSaleWithItems } from "@/lib/server-queries";
-import { money, fmtDateTime } from "@/lib/shop";
+import { money, fmtDateTime, invoiceNo } from "@/lib/shop";
 import { Pending, LoadError, EmptyState } from "@/components/shop-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -93,9 +93,10 @@ function InvoicePage() {
             </div>
           </div>
           <div className="text-right">
-            <div className="font-display text-lg font-bold">
-              {sale.invoice_no ?? `EL-${String(sale.id).padStart(5, "0")}`}
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Invoice No
             </div>
+            <div className="font-display text-2xl font-bold">{invoiceNo(sale)}</div>
             <div className="text-xs text-muted-foreground">
               {fmtDateTime(sale.created_at)}
             </div>
@@ -172,9 +173,21 @@ function InvoicePage() {
               <span>{money(sale.total)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Paid</span>
+              <span className="text-muted-foreground">Paid now</span>
               <span>{money(sale.paid)}</span>
             </div>
+            {Number(sale.received) > 0 ? (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Received from customer</span>
+                  <span>{money(sale.received)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Return to customer</span>
+                  <span>{money(sale.change_amount)}</span>
+                </div>
+              </>
+            ) : null}
             <div className="flex justify-between font-semibold">
               <span className={Number(sale.due) > 0 ? "text-destructive" : "text-muted-foreground"}>
                 Due
