@@ -6,3 +6,8 @@
 - [x] Staff-only sign-in
 - [x] Forgot password / reset
 - [ ] Owner account — waiting on the owner to add staff accounts in Users
+- [x] Percentage discount capped at 2.5%; money discount unlimited
+- [x] Customer Return page — stock back on shelf + money refunded, counted in cash calculations
+- [x] Dashboard & Analysis money calculations include paid-now, leftover payments received and refunds
+- [x] Inventory categories (Paper, Stationery, Print supplies, Other)
+- [x] Services auto-deduct linked stock (supplies) on every sale
