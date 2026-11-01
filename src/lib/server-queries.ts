@@ -7,6 +7,9 @@ import type {
   InventoryItem,
   CustomerPayment,
   DailyCost,
+  ServiceSupply,
+  CustomerReturn,
+  CustomerReturnItem,
 } from "@/lib/shop";
 
 export const getSales = createServerFn({ method: "GET" })
@@ -68,6 +71,36 @@ export const getDailyCosts = createServerFn({ method: "GET" })
     .order("id", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as DailyCost[];
+});
+
+export const getServiceSupplies = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { data, error } = await context.supabase
+    .from("service_supplies")
+    .select("*")
+    .order("id", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ServiceSupply[];
+});
+
+export const getReturns = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { data, error } = await context.supabase
+    .from("customer_returns")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CustomerReturn[];
+});
+
+export const getReturnItems = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  const { data, error } = await context.supabase
+    .from("customer_return_items")
+    .select("*")
+    .order("id", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CustomerReturnItem[];
 });
 
 export const getSaleWithItems = createServerFn({ method: "GET" })
